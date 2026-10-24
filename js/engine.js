@@ -138,7 +138,9 @@
       const lbl = el("label", "muted", "Seu nome");
       lbl.setAttribute("for", "nome");
       const input = el("input");
-      input.type = "text"; input.id = "nome"; input.maxLength = 24; input.placeholder = "Viajante";
+      input.type = "text"; input.id = "nome"; input.maxLength = 24; input.placeholder = "Viajante (opcional)";
+      input.autocomplete = "off"; input.setAttribute("enterkeyhint", "done");
+      input.addEventListener("keydown", function (e) { if (e.key === "Enter") input.blur(); });
       app.appendChild(lbl); app.appendChild(input);
       const go = btn("Começar", "primary", function () {
         state = createState(story, chosen, input.value);
@@ -166,7 +168,12 @@
       store("set", JSON.stringify(state));
       clear();
       const ch = node.chapter;
-      app.appendChild(el("div", "hdr", "Capítulo " + ch + " — " + story.chapters[ch]));
+      const hdr = el("div", "hdr");
+      hdr.appendChild(el("span", "", "Capítulo " + ch + " — " + story.chapters[ch]));
+      const menuBtn = btn("Menu", "mini", title);
+      menuBtn.setAttribute("aria-label", "Voltar ao menu (o progresso fica salvo)");
+      hdr.appendChild(menuBtn);
+      app.appendChild(hdr);
       const bar = el("div", "bar");
       bar.appendChild(el("span", "", state.name));
       bar.appendChild(el("span", "", "Vigor " + state.stats.vigor + " · Astúcia " + state.stats.astucia + " · Empatia " + state.stats.empatia));
@@ -176,12 +183,18 @@
       const inv = el("span", "");
       inv.appendChild(document.createTextNode("Itens: "));
       if (!state.items.length) inv.appendChild(document.createTextNode("—"));
-      state.items.forEach(function (id, i) {
+      const desc = el("div", "itemdesc");
+      desc.hidden = true;
+      state.items.forEach(function (id) {
         const it = story.items[id] || { name: id, desc: "" };
-        const s = el("span", "", (i ? ", " : "") + it.name);
+        const s = btn(it.name, "chip", function () {
+          const open = !desc.hidden && desc.textContent === it.desc;
+          desc.textContent = it.desc; desc.hidden = open;
+        });
         s.title = it.desc; inv.appendChild(s);
       });
       bar.appendChild(inv);
+      bar.appendChild(desc);
       app.appendChild(bar);
       const r = state.lastRoll;
       if (r) {
@@ -203,8 +216,9 @@
         box.appendChild(b);
       });
       app.appendChild(box);
+      // Só foca automaticamente quando há teclado de verdade; no toque o foco causaria destaque fantasma.
       const first = box.querySelector("button:not(:disabled)");
-      if (first) first.focus({ preventScroll: true });
+      if (first && usingKeyboard) first.focus({ preventScroll: true });
     }
 
     function endScreen(node) {
@@ -220,7 +234,10 @@
       app.appendChild(btn("Jogar novamente", "primary", title));
     }
 
+    let usingKeyboard = false;
+    document.addEventListener("pointerdown", function () { usingKeyboard = false; });
     document.addEventListener("keydown", function (e) {
+      usingKeyboard = true;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (!/^[1-9]$/.test(e.key) || !state || !story.nodes[state.node] || story.nodes[state.node].ending) return;
       if (document.activeElement && document.activeElement.tagName === "INPUT") return;
